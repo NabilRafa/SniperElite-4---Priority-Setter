@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import messagebox, ttk
 import psutil
 import threading
 import time
@@ -7,13 +7,23 @@ import time
 class PrioritySetterApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Process Priority Setter - By Nabil Rafa \\ @nabilr.a95")
-        self.root.geometry("400x300")
+        self.root.title("Sniper Elite 4 - Process Priority Setter")
+        self.root.geometry("400x400")
         self.root.resizable(False, False)
         
         self.monitoring = False
         self.monitor_thread = None
         self.current_pid = None
+        
+        # Priority mapping
+        self.priority_map = {
+            "Realtime": psutil.REALTIME_PRIORITY_CLASS,
+            "High": psutil.HIGH_PRIORITY_CLASS,
+            "Above Normal": psutil.ABOVE_NORMAL_PRIORITY_CLASS,
+            "Normal": psutil.NORMAL_PRIORITY_CLASS,
+            "Below Normal": psutil.BELOW_NORMAL_PRIORITY_CLASS,
+            "Low": psutil.IDLE_PRIORITY_CLASS
+        }
         
         # UI Elements
         self.create_widgets()
@@ -37,6 +47,27 @@ class PrioritySetterApp:
         
         self.pid_entry = tk.Entry(input_frame, width=20, font=("Arial", 10))
         self.pid_entry.grid(row=0, column=1, padx=5, pady=5)
+        
+        # Priority Selection Frame
+        priority_frame = tk.Frame(self.root, pady=5)
+        priority_frame.pack()
+        
+        priority_label = tk.Label(priority_frame, text="Priority Level:", font=("Arial", 10))
+        priority_label.grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        
+        # Priority dropdown (from top to bottom: Realtime to Low)
+        self.priority_var = tk.StringVar(value="High")
+        priority_options = ["Realtime", "High", "Above Normal", "Normal", "Below Normal", "Low"]
+        
+        self.priority_dropdown = ttk.Combobox(
+            priority_frame,
+            textvariable=self.priority_var,
+            values=priority_options,
+            state="readonly",
+            width=18,
+            font=("Arial", 10)
+        )
+        self.priority_dropdown.grid(row=0, column=1, padx=5, pady=5)
         
         # Start/Stop Button
         self.toggle_button = tk.Button(
@@ -79,6 +110,15 @@ class PrioritySetterApp:
         )
         self.info_label.pack()
         
+        # Watermark
+        watermark_label = tk.Label(
+            self.root,
+            text="By Nabil Rafa \\ @nabilr.a95",
+            font=("Arial", 8),
+            fg="gray"
+        )
+        watermark_label.pack(side="bottom", pady=5)
+        
     def toggle_monitoring(self):
         if not self.monitoring:
             self.start_monitoring()
@@ -110,12 +150,22 @@ class PrioritySetterApp:
             messagebox.showerror("Error", f"Could not access procces: {e}")
             return
         
+        # Warning for Realtime priority
+        if self.priority_var.get() == "Realtime":
+            result = messagebox.askyesno(
+                "Warning",
+                "Realtime priority can make your system unstable!\n\nAre you sure you want to continue?"
+            )
+            if not result:
+                return
+        
         self.current_pid = pid
         self.monitoring = True
         
         # Update UI
         self.toggle_button.config(text="Stop Monitoring", bg="#f44336")
         self.pid_entry.config(state="disabled")
+        self.priority_dropdown.config(state="disabled")
         self.status_label.config(text="Monitoring active", fg="green")
         self.info_label.config(text=f"Process: {process_name} (PID: {pid})")
         
@@ -129,6 +179,7 @@ class PrioritySetterApp:
         # Update UI
         self.toggle_button.config(text="Start Monitoring", bg="#4CAF50")
         self.pid_entry.config(state="normal")
+        self.priority_dropdown.config(state="readonly")
         self.status_label.config(text="Monitoring Stopped", fg="orange")
         self.info_label.config(text="")
     
@@ -144,16 +195,16 @@ class PrioritySetterApp:
                 # Get current priority
                 current_priority = process.nice()
                 
-                # Windows priority classes:
-                # psutil.HIGH_PRIORITY_CLASS = high priority
-                target_priority = psutil.HIGH_PRIORITY_CLASS
+                # Get target priority from selected option
+                selected_priority_name = self.priority_var.get()
+                target_priority = self.priority_map[selected_priority_name]
                 
                 if current_priority != target_priority:
-                    # Set to high priority
+                    # Set to target priority
                     process.nice(target_priority)
-                    self.root.after(0, lambda: self.update_status("Priority set to HIGH", "orange"))
+                    self.root.after(0, lambda p=selected_priority_name: self.update_status(f"Priority set to {p}", "orange"))
                 else:
-                    self.root.after(0, lambda: self.update_status("Priority already HIGH ✓", "green"))
+                    self.root.after(0, lambda p=selected_priority_name: self.update_status(f"Priority already {p} ✓", "green"))
                 
             except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
                 self.root.after(0, lambda: self.on_error(str(e)))
@@ -170,6 +221,7 @@ class PrioritySetterApp:
         self.monitoring = False
         self.toggle_button.config(text="Start Monitoring", bg="#4CAF50")
         self.pid_entry.config(state="normal")
+        self.priority_dropdown.config(state="readonly")
         self.status_label.config(text="Process stopped", fg="red")
         messagebox.showwarning("Process Terminated", "Monitored Process has been stopped!")
     
@@ -177,6 +229,7 @@ class PrioritySetterApp:
         self.monitoring = False
         self.toggle_button.config(text="Start Monitoring", bg="#4CAF50")
         self.pid_entry.config(state="normal")
+        self.priority_dropdown.config(state="readonly")
         self.status_label.config(text="Error accurred", fg="red")
         messagebox.showerror("Error", f"Error while monitoring: {error_msg}")
 
